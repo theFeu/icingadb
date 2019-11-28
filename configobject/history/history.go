@@ -19,7 +19,7 @@ import (
 var mysqlObservers = func() (mysqlObservers map[string]prometheus.Observer) {
 	mysqlObservers = map[string]prometheus.Observer{}
 
-	for _, historyType := range [6]string{"state", "notification", "usernotification", "downtime", "comment", "flapping"} {
+	for _, historyType := range [7]string{"state", "notification", "usernotification", "downtime", "comment", "flapping", "acknowledgement"} {
 		mysqlObservers[historyType] = connection.DbIoSeconds.WithLabelValues(
 			"mysql", fmt.Sprintf("replace into %s_history", historyType),
 		)
@@ -38,7 +38,7 @@ func logHistoryCounters() {
 
 	for {
 		<-every20s.C
-		for _, historyType := range [6]string{"state", "notification", "usernotification", "downtime", "comment", "flapping"} {
+		for historyType := range mysqlObservers {
 			if historyCounter[historyType] > 0 {
 				log.Infof("Added %d %s history entries in the last 20 seconds", historyCounter[historyType], historyType)
 				historyCounterLock.Lock()
@@ -57,6 +57,7 @@ func StartHistoryWorkers(super *supervisor.Supervisor) {
 		downtimeHistoryWorker,
 		commentHistoryWorker,
 		flappingHistoryWorker,
+		acknowledgementHistoryWorker,
 	}
 
 	for workerId := range workers {
@@ -428,6 +429,58 @@ func flappingHistoryWorker(super *supervisor.Supervisor) {
 	}
 
 	historyWorker(super, "flapping", statements, dataFunctions, mysqlObservers["flapping"])
+}
+
+func acknowledgementHistoryWorker(super *supervisor.Supervisor) {
+	statements := []string{
+		`REPLACE INTO acknowledgement_history (id, environment_id, endpoint_id, object_type, host_id, service_id, event_time,` +
+			`author, comment, expire_time, is_sticky, is_persistent)` +
+			`VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		`REPLACE INTO history (id, environment_id, endpoint_id, object_type, host_id, service_id,` +
+			` acknowledgement_history_id, event_type, event_time)` +
+			`VALUES (?,?,?,?,?,?,?,?,?)`,
+	}
+
+	dataFunctions := []func(values map[string]interface{}) []interface{}{
+		func(values map[string]interface{}) []interface{} {
+			id := uuid.MustParse(values["id"].(string))
+			data := []interface{}{
+				id[:],
+				super.EnvId,
+				utils.DecodeHexIfNotNil(values["endpoint_id"]),
+				values["object_type"].(string),
+				utils.EncodeChecksum(values["host_id"].(string)),
+				utils.DecodeHexIfNotNil(values["service_id"]),
+				values["event_time"],
+				values["author"],
+				values["comment"],
+				values["expire_time"],
+				utils.RedisIntToDBBoolean(values["is_sticky"]),
+				utils.RedisIntToDBBoolean(values["is_persistent"]),
+			}
+
+			return data
+		},
+		func(values map[string]interface{}) []interface{} {
+			id := uuid.MustParse(values["id"].(string))
+
+			data := []interface{}{
+				id[:],
+				super.EnvId,
+				utils.DecodeHexIfNotNil(values["endpoint_id"]),
+				values["object_type"].(string),
+				utils.EncodeChecksum(values["host_id"].(string)),
+				utils.DecodeHexIfNotNil(values["service_id"]),
+				id[:],
+				values["event_type"],
+				values["event_time"],
+			}
+
+			return data
+		},
+	}
+
+	historyWorker(super, "acknowledgement", statements, dataFunctions, mysqlObservers["acknowledgement"])
 }
 
 func historyWorker(super *supervisor.Supervisor, historyType string, preparedStatements []string, dataFunctions []func(map[string]interface{}) []interface{}, observer prometheus.Observer) {
