@@ -3,9 +3,9 @@
 package ha
 
 import (
-	"encoding/json"
 	"github.com/Icinga/icingadb/config/testbackends"
 	"github.com/Icinga/icingadb/connection"
+	"github.com/intel-go/fastjson"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -35,7 +35,7 @@ func TestIcingaHeartbeatListener(t *testing.T) {
 	time.Sleep(time.Second * 2)
 
 	var uj interface{} = nil
-	if err := json.Unmarshal([]byte(icingastate), &uj); err != nil {
+	if err := fastjson.Unmarshal([]byte(icingastate), &uj); err != nil {
 		assert.Nil(t, err)
 	}
 

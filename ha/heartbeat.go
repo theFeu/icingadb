@@ -4,8 +4,8 @@ package ha
 
 import (
 	"crypto/sha1"
-	"encoding/json"
 	"github.com/Icinga/icingadb/connection"
+	"github.com/intel-go/fastjson"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -42,7 +42,7 @@ func IcingaHeartbeatListener(rdb *connection.RDBWrapper, chEnv chan *Environment
 		log.Debug("Got heartbeat")
 
 		var unJson interface{} = nil
-		if err = json.Unmarshal([]byte(msg.Payload), &unJson); err != nil {
+		if err = fastjson.Unmarshal([]byte(msg.Payload), &unJson); err != nil {
 			chErr <- err
 			return
 		}

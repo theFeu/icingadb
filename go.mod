@@ -7,6 +7,7 @@ require (
 	github.com/go-redis/redis v6.15.6+incompatible
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/google/uuid v1.1.1
+	github.com/intel-go/fastjson v0.0.0-20170329170629-f846ae58a1ab
 	github.com/json-iterator/go v1.1.8
 	github.com/onsi/ginkgo v1.10.3 // indirect
 	github.com/onsi/gomega v1.7.1 // indirect
