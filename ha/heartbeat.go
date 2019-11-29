@@ -41,15 +41,26 @@ func IcingaHeartbeatListener(rdb *connection.RDBWrapper, chEnv chan *Environment
 
 		log.Debug("Got heartbeat")
 
-		var unJson interface{} = nil
-		if err = json.Unmarshal([]byte(msg.Payload), &unJson); err != nil {
+		var icingaStats struct {
+			IcingaApplication struct {
+				Status struct {
+					IcingaApplication struct {
+						App struct {
+							Environment string `json:"environment"`
+							NodeName    string `json:"node_name"`
+						} `json:"app"`
+					} `json:"icingaapplication"`
+				} `json:"status"`
+			} `json:"IcingaApplication"`
+		}
+
+		if err = json.Unmarshal([]byte(msg.Payload), &icingaStats); err != nil {
 			chErr <- err
 			return
 		}
 
-		environment := unJson.(map[string]interface{})["IcingaApplication"].(map[string]interface{})["status"].(map[string]interface{})["icingaapplication"].(map[string]interface{})["app"].(map[string]interface{})["environment"].(string)
-		nodeName := unJson.(map[string]interface{})["IcingaApplication"].(map[string]interface{})["status"].(map[string]interface{})["icingaapplication"].(map[string]interface{})["app"].(map[string]interface{})["node_name"].(string)
-		env := &Environment{Name: environment, ID: Sha1bytes([]byte(environment)), NodeName: nodeName}
+		app := &icingaStats.IcingaApplication.Status.IcingaApplication.App
+		env := &Environment{Name: app.Environment, ID: Sha1bytes([]byte(app.Environment)), NodeName: app.NodeName}
 		chEnv <- env
 	}
 }
